@@ -1,16 +1,17 @@
-import {createMarketManager} from "./servises/marketManager.ts";
-import {record} from "./record/index.ts";
+import "dotenv/config";
+import { initDb } from "./db.ts";
+import { createMarketManager } from "./servises/marketManager.ts";
+import { recordPg } from "./record/index.ts";
 
 (async () => {
-    const btcRecord = record("btc-15-min", "btc");
-    const ethRecord = record("eth-15-min", "eth");
-    const solRecord = record("sol-15-min", "sol");
-    const xrpRecord = record("xrp-15-min", "xrp");
+    await initDb();
 
-    const btcManager = await createMarketManager("btc", [btcRecord]);
-    const ethManager = await createMarketManager("eth", [ethRecord]);
-    const solManager = await createMarketManager("sol", [solRecord]);
-    const xrpManager = await createMarketManager("xrp", [xrpRecord]);
+    const [btcManager, ethManager, solManager, xrpManager] = await Promise.all([
+        createMarketManager("btc", [recordPg("btc")]),
+        createMarketManager("eth", [recordPg("eth")]),
+        createMarketManager("sol", [recordPg("sol")]),
+        createMarketManager("xrp", [recordPg("xrp")]),
+    ]);
 
     btcManager.start();
     ethManager.start();

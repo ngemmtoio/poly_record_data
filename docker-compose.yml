@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: polymarket
+      POSTGRES_USER: poly
+      POSTGRES_PASSWORD: PolySecure2026
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  app:
+    build: .
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+
+volumes:
+  pgdata:
