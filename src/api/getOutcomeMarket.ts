@@ -1,4 +1,9 @@
-export async function getOutcomeMarket(slug: string): Promise<string[]> {
+export type OutcomeResponse = {
+    outcomePrices: string[];
+    closed: boolean;
+};
+
+export async function getOutcomeMarket(slug: string): Promise<OutcomeResponse> {
     const res = await fetch(
         `https://gamma-api.polymarket.com/markets/slug/${slug}`
     );
@@ -8,5 +13,9 @@ export async function getOutcomeMarket(slug: string): Promise<string[]> {
     }
 
     const market = await res.json();
-    return JSON.parse(market.outcomePrices);
+
+    return {
+        outcomePrices: JSON.parse(market.outcomePrices),
+        closed: market.closed === true,
+    };
 }
