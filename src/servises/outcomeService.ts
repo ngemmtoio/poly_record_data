@@ -1,56 +1,73 @@
-import { buildPreviousSlug } from "../functions/getPrevious15mUnix.ts";
+import { getPrevious5mUnix } from "../functions/getPrevious5mUnix.ts";
 import { getOutcomeMarket } from "../api/getOutcomeMarket.ts";
 
-const POLL_INTERVAL = 60_000;
+const INTERVAL_SEC = 5 * 60;
+const INITIAL_DELAY_MS = 60_000;
+const RETRY_INTERVAL_MS = 30_000;
 
 function sleep(ms: number) {
     return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+async function pollUntilResolved(
+    slug: string,
+    onResult: (slug: string, result: "Up" | "Down") => void
+): Promise<void> {
+    while (true) {
+        try {
+            const { outcomePrices, closed } = await getOutcomeMarket(slug);
+
+            const numeric = outcomePrices.map(Number);
+            const hasOne = numeric.includes(1);
+            const hasZero = numeric.includes(0);
+            const isResolved = closed && hasOne && hasZero;
+
+            if (isResolved) {
+                const winnerIndex = numeric.findIndex(p => p === 1);
+                const result: "Up" | "Down" =
+                    winnerIndex === 0 ? "Up" : "Down";
+                console.log(`Result ${slug}: ${result}`);
+                onResult(slug, result);
+                return;
+            } else {
+                console.log(
+                    `[${slug}] not resolved (closed=${closed}, prices=${JSON.stringify(outcomePrices)})`
+                );
+            }
+        } catch (e) {
+            console.log(
+                `[${slug}] not available`,
+                e instanceof Error ? e.message : e
+            );
+        }
+
+        await sleep(RETRY_INTERVAL_MS);
+    }
 }
 
 export async function outcomeService(
     token: string,
     onResult: (slug: string, result: "Up" | "Down") => void
 ): Promise<void> {
-    let lastProcessedSlug: string | null = null;
+    let bucketToCheck = getPrevious5mUnix();
 
     while (true) {
-        const slug = buildPreviousSlug(token);
+        const closeTimeMs = (bucketToCheck + INTERVAL_SEC) * 1000;
+        const firstCheckAt = closeTimeMs + INITIAL_DELAY_MS;
+        const waitUntilFirstCheck = firstCheckAt - Date.now();
 
-        if (slug === lastProcessedSlug) {
-            await sleep(POLL_INTERVAL);
-            continue;
+        if (waitUntilFirstCheck > 0) {
+            await sleep(waitUntilFirstCheck);
         }
 
+        const slug = `${token}-updown-5m-${bucketToCheck}`;
         console.log("Check", slug);
 
-        try {
-            const outcomePrices = await getOutcomeMarket(slug);
-            const numeric = outcomePrices.map(Number);
+        // Запускаем проверку в фоне и сразу идём к следующему bucket
+        pollUntilResolved(slug, onResult).catch(e => {
+            console.error(`[${slug}] poll task crashed`, e);
+        });
 
-            const isResolved =
-                numeric.includes(1) && numeric.includes(0);
-
-            if (isResolved) {
-
-                const winnerIndex = numeric.findIndex(p => p === 1);
-                const result: "Up" | "Down" =
-                    winnerIndex === 0 ? "Up" : "Down";
-
-                console.log("Result", result);
-
-                lastProcessedSlug = slug;
-
-                // ✅ передаем И slug И результат
-                onResult(slug, result);
-
-            } else {
-                console.log("No solution");
-            }
-
-        } catch {
-            console.log("Not available");
-        }
-
-        await sleep(POLL_INTERVAL);
+        bucketToCheck += INTERVAL_SEC;
     }
 }

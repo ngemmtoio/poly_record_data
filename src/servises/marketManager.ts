@@ -1,8 +1,8 @@
 import { createPolymarketWS } from "../api/wsClient.ts";
-import { buildSlug } from "../functions/get15mUnix.ts";
+import { buildSlug } from "../functions/get5mUnix.ts";
 import { getClobTokenIds } from "../api/getClobTokenIds.ts";
 import type { MarketMessage } from "./types.ts";
-import {getSecondsUntilNextSlug} from "../functions/getSecondsUntilNextSlug.ts";
+import { getSecondsUntilNextSlug } from "../functions/getSecondsUntilNextSlug.ts";
 
 type StrategyHandler = (
     messages: MarketMessage[],
@@ -85,7 +85,7 @@ export async function createMarketManager(
         setInterval(() => {
             const secondsLeft = getSecondsUntilNextSlug();
 
-            if (secondsLeft <= 60 && !nextClobIds) {
+            if (secondsLeft <= 30 && !nextClobIds) {
                 prefetchNext().catch(console.error);
             }
 
